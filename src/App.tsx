@@ -1,8 +1,24 @@
 import { useEffect, useState } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import './App.css'
 
+type StyleReport = {
+  summary: string
+  bodyShapeInsight: string
+  fitRecommendations: string[]
+  colorRecommendations: string[]
+  outfitIdeas: string[]
+  avoid: string[]
+}
+
 function App() {
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [height, setHeight] = useState('')
+  const [weight, setWeight] = useState('')
+  const [report, setReport] = useState<StyleReport | null>(null)
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -12,14 +28,16 @@ function App() {
     }
   }, [photoPreview])
 
-  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
 
     if (!file) {
+      setPhotoFile(null)
       setPhotoPreview(null)
       return
     }
 
+    setPhotoFile(file)
     setPhotoPreview((currentPreview) => {
       if (currentPreview) {
         URL.revokeObjectURL(currentPreview)
@@ -27,6 +45,55 @@ function App() {
 
       return URL.createObjectURL(file)
     })
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setReport(null)
+
+    if (!height || !weight) {
+      setError('키와 몸무게를 입력해 주세요.')
+      return
+    }
+
+    if (photoFile && photoFile.size > 4 * 1024 * 1024) {
+      setError('사진은 4MB 이하 파일을 사용해 주세요.')
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      const photoDataUrl = photoFile ? await readFileAsDataUrl(photoFile) : null
+      const response = await fetch('/api/style-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          heightCm: Number(height),
+          weightKg: Number(weight),
+          photoDataUrl,
+        }),
+      })
+
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? '스타일 보고서를 생성하지 못했습니다.')
+      }
+
+      setReport(payload.report)
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : '잠시 후 다시 시도해 주세요.',
+      )
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -55,7 +122,7 @@ function App() {
           <h2>프로필 입력</h2>
         </div>
 
-        <form className="profile-form">
+        <form className="profile-form" onSubmit={handleSubmit}>
           <label className="photo-upload">
             <input type="file" accept="image/*" onChange={handlePhotoChange} />
             {photoPreview ? (
@@ -81,6 +148,8 @@ function App() {
                   min="120"
                   max="230"
                   placeholder="170"
+                  value={height}
+                  onChange={(event) => setHeight(event.target.value)}
                 />
                 <span>cm</span>
               </div>
@@ -95,19 +164,65 @@ function App() {
                   min="30"
                   max="200"
                   placeholder="60"
+                  value={weight}
+                  onChange={(event) => setWeight(event.target.value)}
                 />
                 <span>kg</span>
               </div>
             </label>
           </div>
 
-          <button type="button" className="primary-action">
-            스타일 분석 시작
+          {error ? <p className="form-error">{error}</p> : null}
+
+          <button type="submit" className="primary-action" disabled={isLoading}>
+            {isLoading ? '보고서 생성 중' : '스타일 분석 시작'}
           </button>
         </form>
+
+        {report ? (
+          <article className="report-panel" aria-label="스타일 컨설팅 보고서">
+            <div>
+              <p className="step-label">Report</p>
+              <h3>스타일 컨설팅 보고서</h3>
+              <p>{report.summary}</p>
+            </div>
+
+            <section>
+              <h4>체형 인사이트</h4>
+              <p>{report.bodyShapeInsight}</p>
+            </section>
+
+            <ReportList title="핏 추천" items={report.fitRecommendations} />
+            <ReportList title="컬러 추천" items={report.colorRecommendations} />
+            <ReportList title="코디 아이디어" items={report.outfitIdeas} />
+            <ReportList title="피하면 좋은 선택" items={report.avoid} />
+          </article>
+        ) : null}
       </section>
     </main>
   )
+}
+
+function ReportList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <section>
+      <h4>{title}</h4>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(String(reader.result)))
+    reader.addEventListener('error', () => reject(reader.error))
+    reader.readAsDataURL(file)
+  })
 }
 
 export default App
