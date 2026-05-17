@@ -121,11 +121,13 @@ export async function onRequestPost({ request, env }: PagesContext) {
     )
   }
 
-  if (typeof payload.output_text !== 'string' || !payload.output_text.trim()) {
+  const reportText = extractOutputText(payload)
+
+  if (!reportText) {
     return json({ error: 'OpenAI 응답에서 보고서 텍스트를 찾지 못했습니다.' }, 502)
   }
 
-  return json({ reportText: payload.output_text })
+  return json({ reportText })
 }
 
 export function onRequestOptions() {
@@ -147,4 +149,41 @@ function corsHeaders() {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   }
+}
+
+function extractOutputText(payload: unknown) {
+  if (!payload || typeof payload !== 'object') {
+    return ''
+  }
+
+  if ('output_text' in payload && typeof payload.output_text === 'string') {
+    return payload.output_text.trim()
+  }
+
+  if (!('output' in payload) || !Array.isArray(payload.output)) {
+    return ''
+  }
+
+  return payload.output
+    .flatMap((item) => {
+      if (!item || typeof item !== 'object' || !('content' in item)) {
+        return []
+      }
+
+      return Array.isArray(item.content) ? item.content : []
+    })
+    .map((content) => {
+      if (!content || typeof content !== 'object') {
+        return ''
+      }
+
+      if ('text' in content && typeof content.text === 'string') {
+        return content.text
+      }
+
+      return ''
+    })
+    .filter(Boolean)
+    .join('\n\n')
+    .trim()
 }
