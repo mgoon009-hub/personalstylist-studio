@@ -1,0 +1,8 @@
+{
+  "name": "personalstylist-studio-static",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "mkdir -p dist && cp -R index.html assets favicon.svg icons.svg dist/"
+  }
+}
