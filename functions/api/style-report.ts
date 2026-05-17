@@ -27,6 +27,15 @@ const developerPrompt = [
   '의학적 진단, 다이어트 처방, 건강 조언은 하지 말고 옷의 핏과 스타일링 중심으로 답변하세요.',
 ].join('\n')
 
+const hairstylePrompt = [
+  '너는 최고의 헤어스타일리스트야.',
+  '3x3 그리드 이미지로, 첨부한 사진 속 사람에게 가장 잘 어울리는 헤어스타일 9개를 생성해줘.',
+  '각 칸에는 헤어스타일 이름과 짧은 설명을 한국어로 넣어줘.',
+  '첨부한 사람의 얼굴, 이목구비, 표정, 피부톤, 얼굴형은 절대 바꾸지 말고 기존 얼굴 그대로 유지해.',
+  '머리카락의 길이, 볼륨, 앞머리, 가르마, 질감, 컬러 톤 등 헤어스타일만 바꿔줘.',
+  '자연스럽고 실제 미용실 상담 자료처럼 깔끔한 3x3 비교 보드로 만들어줘.',
+].join('\n')
+
 export async function onRequestPost({ request, env }: PagesContext) {
   if (!env.OPENAI_API_KEY) {
     return json({ error: 'OPENAI_API_KEY 환경 변수가 설정되어 있지 않습니다.' }, 500)
@@ -127,7 +136,22 @@ export async function onRequestPost({ request, env }: PagesContext) {
     return json({ error: 'OpenAI 응답에서 보고서 텍스트를 찾지 못했습니다.' }, 502)
   }
 
-  return json({ reportText })
+  if (!body.photoDataUrl) {
+    return json({
+      reportText,
+      hairstyleError: '사진이 없어 헤어스타일 이미지는 생성하지 않았습니다.',
+    })
+  }
+
+  const hairstyleResult = await createHairstyleGridImage({
+    apiKey: env.OPENAI_API_KEY,
+    photoDataUrl: body.photoDataUrl,
+  })
+
+  return json({
+    reportText,
+    ...hairstyleResult,
+  })
 }
 
 export function onRequestOptions() {
@@ -186,4 +210,71 @@ function extractOutputText(payload: unknown) {
     .filter(Boolean)
     .join('\n\n')
     .trim()
+}
+
+async function createHairstyleGridImage({
+  apiKey,
+  photoDataUrl,
+}: {
+  apiKey: string
+  photoDataUrl: string
+}) {
+  const imageBlob = await dataUrlToBlob(photoDataUrl)
+  const form = new FormData()
+
+  form.append('image', imageBlob, `portrait.${extensionForType(imageBlob.type)}`)
+  form.append('prompt', hairstylePrompt)
+  form.append('model', 'gpt-image-1.5')
+  form.append('n', '1')
+  form.append('size', 'auto')
+  form.append('quality', 'auto')
+  form.append('background', 'auto')
+  form.append('moderation', 'auto')
+  form.append('input_fidelity', 'high')
+
+  const imageResponse = await fetch('https://api.openai.com/v1/images/edits', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: form,
+  })
+
+  const payload = await imageResponse.json()
+
+  if (!imageResponse.ok) {
+    return {
+      hairstyleError:
+        payload.error?.message ?? '헤어스타일 이미지를 생성하지 못했습니다.',
+    }
+  }
+
+  const b64Json = payload.data?.[0]?.b64_json
+
+  if (typeof b64Json !== 'string' || !b64Json) {
+    return {
+      hairstyleError: 'OpenAI 이미지 응답에서 생성 이미지를 찾지 못했습니다.',
+    }
+  }
+
+  return {
+    hairstyleImageDataUrl: `data:image/png;base64,${b64Json}`,
+  }
+}
+
+async function dataUrlToBlob(dataUrl: string) {
+  const response = await fetch(dataUrl)
+  return response.blob()
+}
+
+function extensionForType(type: string) {
+  if (type === 'image/png') {
+    return 'png'
+  }
+
+  if (type === 'image/webp') {
+    return 'webp'
+  }
+
+  return 'jpg'
 }
