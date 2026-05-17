@@ -10,49 +10,22 @@ type PagesContext = {
 type StyleReportRequest = {
   heightCm?: number
   weightKg?: number
+  notes?: string
   photoDataUrl?: string | null
 }
 
-const reportSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: [
-    'summary',
-    'bodyShapeInsight',
-    'fitRecommendations',
-    'colorRecommendations',
-    'outfitIdeas',
-    'avoid',
-  ],
-  properties: {
-    summary: { type: 'string' },
-    bodyShapeInsight: { type: 'string' },
-    fitRecommendations: {
-      type: 'array',
-      minItems: 3,
-      maxItems: 5,
-      items: { type: 'string' },
-    },
-    colorRecommendations: {
-      type: 'array',
-      minItems: 3,
-      maxItems: 5,
-      items: { type: 'string' },
-    },
-    outfitIdeas: {
-      type: 'array',
-      minItems: 3,
-      maxItems: 5,
-      items: { type: 'string' },
-    },
-    avoid: {
-      type: 'array',
-      minItems: 2,
-      maxItems: 4,
-      items: { type: 'string' },
-    },
-  },
-}
+const developerPrompt = [
+  '당신은 전문 퍼스널 스타일리스트입니다.',
+  '사용자의 사진과 신체 정보를 분석하여 맞춤형 스타일 컨설팅 보고서를 작성해주세요.',
+  '보고서에는 다음 내용을 포함해주세요.',
+  '1. 체형분석',
+  '2. 퍼스널 컬러 추천',
+  '3. 어울리는 스타일 및 패션 아이템 추천',
+  '4. 피해야 할 스타일',
+  '5. 코디 팁',
+  '친절하고 전문적인 톤으로 작성해주세요.',
+  '의학적 진단, 다이어트 처방, 건강 조언은 하지 말고 옷의 핏과 스타일링 중심으로 답변하세요.',
+].join('\n')
 
 export async function onRequestPost({ request, env }: PagesContext) {
   if (!env.OPENAI_API_KEY) {
@@ -78,17 +51,15 @@ export async function onRequestPost({ request, env }: PagesContext) {
     return json({ error: '몸무게는 30kg에서 200kg 사이로 입력해 주세요.' }, 400)
   }
 
-  const textPrompt = [
-    '한국어로 개인 스타일 컨설팅 보고서를 작성해 주세요.',
-    '사용자의 사진과 신체 정보를 참고하되, 민감한 신체 평가나 단정적인 표현은 피하고 실용적인 의류 선택 중심으로 답변하세요.',
-    `키: ${heightCm}cm`,
-    `몸무게: ${weightKg}kg`,
-  ].join('\n')
+  const notes = typeof body.notes === 'string' ? body.notes.trim().slice(0, 1000) : ''
+  const userPrompt = [`키 ${heightCm}, 몸무게 ${weightKg}`, notes]
+    .filter(Boolean)
+    .join('\n')
 
   const content: Array<Record<string, string>> = [
     {
       type: 'input_text',
-      text: textPrompt,
+      text: userPrompt,
     },
   ]
 
@@ -106,10 +77,17 @@ export async function onRequestPost({ request, env }: PagesContext) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-5.2',
-      instructions:
-        'You are a careful personal stylist. Return only the requested JSON. Do not provide medical, diet, or health advice.',
+      model: 'gpt-5.4-mini',
       input: [
+        {
+          role: 'developer',
+          content: [
+            {
+              type: 'input_text',
+              text: developerPrompt,
+            },
+          ],
+        },
         {
           role: 'user',
           content,
@@ -117,12 +95,16 @@ export async function onRequestPost({ request, env }: PagesContext) {
       ],
       text: {
         format: {
-          type: 'json_schema',
-          name: 'style_consulting_report',
-          strict: true,
-          schema: reportSchema,
+          type: 'text',
         },
+        verbosity: 'medium',
       },
+      reasoning: {
+        effort: 'medium',
+        summary: 'auto',
+      },
+      tools: [],
+      store: true,
     }),
   })
 
@@ -139,11 +121,11 @@ export async function onRequestPost({ request, env }: PagesContext) {
     )
   }
 
-  try {
-    return json({ report: JSON.parse(payload.output_text) })
-  } catch {
-    return json({ error: 'OpenAI 응답을 보고서 형식으로 변환하지 못했습니다.' }, 502)
+  if (typeof payload.output_text !== 'string' || !payload.output_text.trim()) {
+    return json({ error: 'OpenAI 응답에서 보고서 텍스트를 찾지 못했습니다.' }, 502)
   }
+
+  return json({ reportText: payload.output_text })
 }
 
 export function onRequestOptions() {

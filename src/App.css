@@ -224,6 +224,24 @@
   font: 700 18px/1.2 var(--sans);
 }
 
+.field textarea {
+  min-height: 104px;
+  width: 100%;
+  resize: vertical;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: 0;
+  color: var(--text-h);
+  background: var(--field-bg);
+  font: 600 15px/1.5 var(--sans);
+}
+
+.field textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .input-unit span {
   color: var(--text);
   font-size: 14px;
@@ -279,7 +297,6 @@
 }
 
 .report-panel h3,
-.report-panel h4,
 .report-panel p {
   margin: 0;
 }
@@ -291,26 +308,17 @@
   letter-spacing: 0;
 }
 
-.report-panel h4 {
-  margin-bottom: 8px;
-  color: var(--text-h);
-  font-size: 15px;
-  letter-spacing: 0;
-}
-
-.report-panel p,
-.report-panel li {
+.report-panel p {
   color: var(--text);
   font-size: 15px;
 }
 
-.report-panel ul {
+.report-text {
   margin: 0;
-  padding-left: 20px;
-}
-
-.report-panel li + li {
-  margin-top: 6px;
+  white-space: pre-wrap;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.7;
 }
 
 @media (max-width: 900px) {

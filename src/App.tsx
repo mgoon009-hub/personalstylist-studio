@@ -2,21 +2,13 @@ import { useEffect, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import './App.css'
 
-type StyleReport = {
-  summary: string
-  bodyShapeInsight: string
-  fitRecommendations: string[]
-  colorRecommendations: string[]
-  outfitIdeas: string[]
-  avoid: string[]
-}
-
 function App() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [height, setHeight] = useState('')
   const [weight, setWeight] = useState('')
-  const [report, setReport] = useState<StyleReport | null>(null)
+  const [notes, setNotes] = useState('')
+  const [report, setReport] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -50,7 +42,7 @@ function App() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
-    setReport(null)
+    setReport('')
 
     if (!height || !weight) {
       setError('키와 몸무게를 입력해 주세요.')
@@ -74,6 +66,7 @@ function App() {
         body: JSON.stringify({
           heightCm: Number(height),
           weightKg: Number(weight),
+          notes: notes.trim(),
           photoDataUrl,
         }),
       })
@@ -84,7 +77,7 @@ function App() {
         throw new Error(payload.error ?? '스타일 보고서를 생성하지 못했습니다.')
       }
 
-      setReport(payload.report)
+      setReport(payload.reportText)
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -172,6 +165,15 @@ function App() {
             </label>
           </div>
 
+          <label className="field">
+            <span>추가 정보</span>
+            <textarea
+              placeholder="예: 얼굴형, 평소 스타일, 선호 색상, 고민되는 핏"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+            />
+          </label>
+
           {error ? <p className="form-error">{error}</p> : null}
 
           <button type="submit" className="primary-action" disabled={isLoading}>
@@ -184,35 +186,12 @@ function App() {
             <div>
               <p className="step-label">Report</p>
               <h3>스타일 컨설팅 보고서</h3>
-              <p>{report.summary}</p>
             </div>
-
-            <section>
-              <h4>체형 인사이트</h4>
-              <p>{report.bodyShapeInsight}</p>
-            </section>
-
-            <ReportList title="핏 추천" items={report.fitRecommendations} />
-            <ReportList title="컬러 추천" items={report.colorRecommendations} />
-            <ReportList title="코디 아이디어" items={report.outfitIdeas} />
-            <ReportList title="피하면 좋은 선택" items={report.avoid} />
+            <div className="report-text">{report}</div>
           </article>
         ) : null}
       </section>
     </main>
-  )
-}
-
-function ReportList({ title, items }: { title: string; items: string[] }) {
-  return (
-    <section>
-      <h4>{title}</h4>
-      <ul>
-        {items.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-    </section>
   )
 }
 
