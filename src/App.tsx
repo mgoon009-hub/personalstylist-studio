@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ChangeEvent, FormEvent } from 'react'
+import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import './App.css'
 
 function App() {
@@ -11,6 +11,7 @@ function App() {
   const [report, setReport] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isDraggingPhoto, setIsDraggingPhoto] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -20,15 +21,19 @@ function App() {
     }
   }, [photoPreview])
 
-  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-
+  function applyPhotoFile(file: File | undefined) {
     if (!file) {
       setPhotoFile(null)
       setPhotoPreview(null)
       return
     }
 
+    if (!file.type.startsWith('image/')) {
+      setError('이미지 파일만 업로드할 수 있습니다.')
+      return
+    }
+
+    setError('')
     setPhotoFile(file)
     setPhotoPreview((currentPreview) => {
       if (currentPreview) {
@@ -37,6 +42,27 @@ function App() {
 
       return URL.createObjectURL(file)
     })
+  }
+
+  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    applyPhotoFile(event.target.files?.[0])
+  }
+
+  function handlePhotoDragOver(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault()
+    setIsDraggingPhoto(true)
+  }
+
+  function handlePhotoDragLeave(event: DragEvent<HTMLLabelElement>) {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setIsDraggingPhoto(false)
+    }
+  }
+
+  function handlePhotoDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault()
+    setIsDraggingPhoto(false)
+    applyPhotoFile(event.dataTransfer.files[0])
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -116,7 +142,12 @@ function App() {
         </div>
 
         <form className="profile-form" onSubmit={handleSubmit}>
-          <label className="photo-upload">
+          <label
+            className={`photo-upload${isDraggingPhoto ? ' is-dragging' : ''}`}
+            onDragOver={handlePhotoDragOver}
+            onDragLeave={handlePhotoDragLeave}
+            onDrop={handlePhotoDrop}
+          >
             <input type="file" accept="image/*" onChange={handlePhotoChange} />
             {photoPreview ? (
               <img src={photoPreview} alt="업로드한 본인 사진 미리보기" />
@@ -126,7 +157,9 @@ function App() {
                   +
                 </span>
                 <span className="upload-title">본인 사진 업로드</span>
-                <span className="upload-help">정면 전신 사진을 권장해요</span>
+                <span className="upload-help">
+                  클릭하거나 파일을 끌어다 놓으세요
+                </span>
               </>
             )}
           </label>
