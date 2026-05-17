@@ -328,6 +328,25 @@
   line-height: 1.7;
 }
 
+.hairstyle-result {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.hairstyle-result img {
+  width: 100%;
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--muted);
+}
+
+.hairstyle-result figcaption {
+  color: var(--text);
+  font-size: 13px;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     width: 100%;

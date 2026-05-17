@@ -9,6 +9,8 @@ function App() {
   const [weight, setWeight] = useState('')
   const [notes, setNotes] = useState('')
   const [report, setReport] = useState('')
+  const [hairstyleImage, setHairstyleImage] = useState('')
+  const [hairstyleError, setHairstyleError] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false)
@@ -69,6 +71,8 @@ function App() {
     event.preventDefault()
     setError('')
     setReport('')
+    setHairstyleImage('')
+    setHairstyleError('')
 
     if (!height || !weight) {
       setError('키와 몸무게를 입력해 주세요.')
@@ -104,6 +108,8 @@ function App() {
       }
 
       setReport(payload.reportText)
+      setHairstyleImage(payload.hairstyleImageDataUrl ?? '')
+      setHairstyleError(payload.hairstyleError ?? '')
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -210,7 +216,7 @@ function App() {
           {error ? <p className="form-error">{error}</p> : null}
 
           <button type="submit" className="primary-action" disabled={isLoading}>
-            {isLoading ? '보고서 생성 중' : '스타일 분석 시작'}
+            {isLoading ? '보고서와 헤어스타일 생성 중' : '스타일 분석 시작'}
           </button>
         </form>
 
@@ -220,6 +226,21 @@ function App() {
               <p className="step-label">Report</p>
               <h3>스타일 컨설팅 보고서</h3>
             </div>
+
+            {hairstyleImage ? (
+              <figure className="hairstyle-result">
+                <img
+                  src={hairstyleImage}
+                  alt="사용자 얼굴을 유지한 9가지 헤어스타일 추천 이미지"
+                />
+                <figcaption>얼굴은 유지하고 헤어스타일만 바꾼 3x3 추천 보드</figcaption>
+              </figure>
+            ) : null}
+
+            {hairstyleError ? (
+              <p className="form-error">{hairstyleError}</p>
+            ) : null}
+
             <div className="report-text">{report}</div>
           </article>
         ) : null}
