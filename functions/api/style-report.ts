@@ -1,5 +1,8 @@
 type Env = {
   OPENAI_API_KEY?: string
+  POLAR_ACCESS_TOKEN?: string
+  POLAR_SERVER?: string
+  POLAR_PRODUCT_ID?: string
 }
 
 type PagesContext = {
@@ -12,7 +15,10 @@ type StyleReportRequest = {
   fitPreference?: string
   notes?: string
   photoDataUrl?: string | null
+  checkoutId?: string
 }
+
+const defaultProductId = 'e590c0f8-6a71-4316-a315-63f7c3a2f56a'
 
 const developerPrompt = [
   '당신은 전문 퍼스널 스타일리스트입니다.',
@@ -35,6 +41,10 @@ export async function onRequestPost({ request, env }: PagesContext) {
       return json({ error: 'OPENAI_API_KEY 환경 변수가 설정되어 있지 않습니다.' }, 500)
     }
 
+    if (!env.POLAR_ACCESS_TOKEN) {
+      return json({ error: 'POLAR_ACCESS_TOKEN 환경 변수가 설정되어 있지 않습니다.' }, 500)
+    }
+
     let body: StyleReportRequest
 
     try {
@@ -46,6 +56,7 @@ export async function onRequestPost({ request, env }: PagesContext) {
     const heightCm = Number(body.heightCm)
     const fitPreference =
       typeof body.fitPreference === 'string' ? body.fitPreference.trim().slice(0, 80) : ''
+    const checkoutId = typeof body.checkoutId === 'string' ? body.checkoutId.trim() : ''
 
     if (!Number.isFinite(heightCm) || heightCm < 120 || heightCm > 230) {
       return json({ error: '키는 120cm에서 230cm 사이로 입력해 주세요.' }, 400)
@@ -53,6 +64,19 @@ export async function onRequestPost({ request, env }: PagesContext) {
 
     if (!fitPreference) {
       return json({ error: '선호하는 핏을 선택해 주세요.' }, 400)
+    }
+
+    if (!checkoutId) {
+      return json({ error: '결제 완료 후 리포트를 생성할 수 있습니다.' }, 402)
+    }
+
+    const isPaid = await verifyPaidCheckout({
+      checkoutId,
+      env,
+    })
+
+    if (!isPaid) {
+      return json({ error: '결제 완료 내역을 확인하지 못했습니다.' }, 402)
     }
 
     const notes = typeof body.notes === 'string' ? body.notes.trim().slice(0, 1000) : ''
@@ -242,6 +266,50 @@ function validateAllowedStyleRequest(text: string) {
   }
 
   return ''
+}
+
+async function verifyPaidCheckout({ checkoutId, env }: { checkoutId: string; env: Env }) {
+  const polarResponse = await fetch(`${polarBaseUrl(env)}/checkouts/${checkoutId}`, {
+    headers: {
+      Authorization: `Bearer ${env.POLAR_ACCESS_TOKEN}`,
+      Accept: 'application/json',
+    },
+  })
+  const payload = await parseJsonResponse(polarResponse)
+
+  if (!polarResponse.ok) {
+    return false
+  }
+
+  return isPaidCheckout(payload) && JSON.stringify(payload).includes(env.POLAR_PRODUCT_ID || defaultProductId)
+}
+
+function polarBaseUrl(env: Env) {
+  return env.POLAR_SERVER === 'sandbox'
+    ? 'https://sandbox-api.polar.sh/v1'
+    : 'https://api.polar.sh/v1'
+}
+
+function isPaidCheckout(payload: unknown) {
+  const status = [
+    getString(payload, 'status'),
+    getString(payload, 'payment_status'),
+    getString(payload, 'checkout_status'),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  return /paid|confirmed|complete|completed|succeeded|success/.test(status)
+}
+
+function getString(payload: unknown, key: string) {
+  if (!payload || typeof payload !== 'object' || !(key in payload)) {
+    return ''
+  }
+
+  const value = payload[key as keyof typeof payload]
+  return typeof value === 'string' ? value : ''
 }
 
 function getErrorMessage(payload: unknown) {

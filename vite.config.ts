@@ -15,6 +15,68 @@ function localPagesFunctions(): Plugin {
   return {
     name: 'local-pages-functions',
     configureServer(server: ViteDevServer) {
+      server.middlewares.use('/api/checkout', async (
+        request: IncomingMessage,
+        response: ServerResponse,
+      ) => {
+        if (request.method === 'OPTIONS') {
+          writeResponse(response, new Response(null, { status: 204 }))
+          return
+        }
+
+        if (request.method !== 'POST') {
+          writeResponse(response, Response.json({ error: '지원하지 않는 요청입니다.' }, { status: 405 }))
+          return
+        }
+
+        try {
+          const { onRequestPost } = await import('./functions/api/checkout')
+          const body = await readRequestBody(request)
+          const apiResponse = await onRequestPost({
+            request: new Request('http://localhost/api/checkout', {
+              method: 'POST',
+              headers: requestHeaders(request),
+              body,
+            }),
+            env: loadLocalEnv(),
+          })
+
+          writeResponse(response, apiResponse)
+        } catch (error) {
+          writeResponse(response, localErrorResponse(error))
+        }
+      })
+
+      server.middlewares.use('/api/checkout-status', async (
+        request: IncomingMessage,
+        response: ServerResponse,
+      ) => {
+        if (request.method === 'OPTIONS') {
+          writeResponse(response, new Response(null, { status: 204 }))
+          return
+        }
+
+        if (request.method !== 'GET') {
+          writeResponse(response, Response.json({ error: '지원하지 않는 요청입니다.' }, { status: 405 }))
+          return
+        }
+
+        try {
+          const { onRequestGet } = await import('./functions/api/checkout-status')
+          const apiResponse = await onRequestGet({
+            request: new Request(`http://localhost/api/checkout-status${request.url ?? ''}`, {
+              method: 'GET',
+              headers: requestHeaders(request),
+            }),
+            env: loadLocalEnv(),
+          })
+
+          writeResponse(response, apiResponse)
+        } catch (error) {
+          writeResponse(response, localErrorResponse(error))
+        }
+      })
+
       server.middlewares.use('/api/style-report', async (
         request: IncomingMessage,
         response: ServerResponse,
@@ -43,22 +105,23 @@ function localPagesFunctions(): Plugin {
 
           writeResponse(response, apiResponse)
         } catch (error) {
-          writeResponse(
-            response,
-            Response.json(
-              {
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : '로컬 API 실행 중 오류가 발생했습니다.',
-              },
-              { status: 500 },
-            ),
-          )
+          writeResponse(response, localErrorResponse(error))
         }
       })
     },
   }
+}
+
+function localErrorResponse(error: unknown) {
+  return Response.json(
+    {
+      error:
+        error instanceof Error
+          ? error.message
+          : '로컬 API 실행 중 오류가 발생했습니다.',
+    },
+    { status: 500 },
+  )
 }
 
 function readRequestBody(request: IncomingMessage) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import './App.css'
 
@@ -82,6 +82,16 @@ type ReportProfile = {
 
 type View = 'home' | 'report'
 
+type PendingReportRequest = {
+  payload: {
+    heightCm: number
+    fitPreference: string
+    notes: string
+    photoDataUrl: string | null
+  }
+  profile: ReportProfile
+}
+
 type ReportInsights = {
   title: string
   summary: string
@@ -116,6 +126,7 @@ function App() {
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false)
   const [view, setView] = useState<View>('home')
   const [reportProfile, setReportProfile] = useState<ReportProfile | null>(null)
+  const [isCheckingPayment, setIsCheckingPayment] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -188,34 +199,40 @@ function App() {
 
     try {
       const photoDataUrl = photoFile ? await readFileAsDataUrl(photoFile) : null
-      const response = await fetch('/api/style-report', {
+      const pendingReport: PendingReportRequest = {
+        payload: {
+          heightCm: Number(height),
+          fitPreference,
+          notes: notes.trim(),
+          photoDataUrl,
+        },
+        profile: {
+          height,
+          fitPreference,
+          notes: notes.trim(),
+          photoPreview: photoDataUrl ?? photoPreview,
+        },
+      }
+
+      sessionStorage.setItem('stylist.pendingReport', JSON.stringify(pendingReport))
+
+      const checkoutResponse = await fetch('/api/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          heightCm: Number(height),
-          fitPreference,
-          notes: notes.trim(),
-          photoDataUrl,
+          successUrl: `${window.location.origin}${window.location.pathname}?checkout_id={CHECKOUT_ID}`,
+          returnUrl: `${window.location.origin}${window.location.pathname}`,
         }),
       })
+      const checkoutPayload = await parseJsonResponse(checkoutResponse)
 
-      const payload = await parseJsonResponse(response)
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? '스타일 보고서를 생성하지 못했습니다.')
+      if (!checkoutResponse.ok) {
+        throw new Error(checkoutPayload.error ?? '결제 페이지를 생성하지 못했습니다.')
       }
 
-      setReport(payload.reportText)
-      setReportProfile({
-        height,
-        fitPreference,
-        notes: notes.trim(),
-        photoPreview,
-      })
-      setView('report')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      window.location.href = checkoutPayload.url
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -226,6 +243,82 @@ function App() {
       setIsLoading(false)
     }
   }
+
+  const createReportFromPending = useCallback(async (
+    pendingReport: PendingReportRequest,
+    checkoutId: string,
+  ) => {
+    const response = await fetch('/api/style-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...pendingReport.payload,
+        checkoutId,
+      }),
+    })
+    const payload = await parseJsonResponse(response)
+
+    if (!response.ok) {
+      throw new Error(payload.error ?? '스타일 보고서를 생성하지 못했습니다.')
+    }
+
+    setReport(payload.reportText)
+    setReportProfile(pendingReport.profile)
+    setView('report')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
+  const completePaidReport = useCallback(async (checkoutId: string) => {
+    setIsCheckingPayment(true)
+    setError('')
+
+    try {
+      const storedPendingReport = sessionStorage.getItem('stylist.pendingReport')
+
+      if (!storedPendingReport) {
+        throw new Error('결제는 확인됐지만 생성할 리포트 입력값을 찾지 못했습니다.')
+      }
+
+      const pendingReport = JSON.parse(storedPendingReport) as PendingReportRequest
+      const statusResponse = await fetch(
+        `/api/checkout-status?checkout_id=${encodeURIComponent(checkoutId)}`,
+      )
+      const statusPayload = await parseJsonResponse(statusResponse)
+
+      if (!statusResponse.ok || !statusPayload.paid) {
+        throw new Error(statusPayload.error ?? '결제 완료 상태를 확인하지 못했습니다.')
+      }
+
+      await createReportFromPending(pendingReport, checkoutId)
+      sessionStorage.removeItem('stylist.pendingReport')
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } catch (paymentError) {
+      setError(
+        paymentError instanceof Error
+          ? paymentError.message
+          : '결제 확인 중 오류가 발생했습니다.',
+      )
+      document.getElementById('style-diagnosis')?.scrollIntoView()
+    } finally {
+      setIsCheckingPayment(false)
+    }
+  }, [createReportFromPending])
+
+  useEffect(() => {
+    const checkoutId = new URLSearchParams(window.location.search).get('checkout_id')
+
+    if (!checkoutId) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void completePaidReport(checkoutId)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [completePaidReport])
 
   if (view === 'report' && reportProfile && report) {
     return (
@@ -412,8 +505,12 @@ function App() {
 
             {error ? <p className="form-error">{error}</p> : null}
 
-            <button type="submit" className="primary-action" disabled={isLoading}>
-              {isLoading ? '리포트 생성 중' : '지금 무료 진단하기'}
+            <button type="submit" className="primary-action" disabled={isLoading || isCheckingPayment}>
+              {isLoading
+                ? '결제 페이지 준비 중'
+                : isCheckingPayment
+                  ? '결제 확인 중'
+                  : '결제하고 리포트 생성하기'}
             </button>
           </form>
 
