@@ -30,7 +30,7 @@ const processSteps = [
   {
     icon: 'straighten',
     title: '데이터 입력',
-    copy: '키와 몸무게를 기반으로 체형 비율과 실루엣 균형을 먼저 파악합니다.',
+    copy: '키와 선호 핏을 기반으로 의류 실루엣과 스타일 방향을 파악합니다.',
   },
   {
     icon: 'add_a_photo',
@@ -75,7 +75,7 @@ const colorTokens = [
 
 type ReportProfile = {
   height: string
-  weight: string
+  fitPreference: string
   notes: string
   photoPreview: string | null
 }
@@ -108,11 +108,9 @@ function App() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [height, setHeight] = useState('')
-  const [weight, setWeight] = useState('')
+  const [fitPreference, setFitPreference] = useState('')
   const [notes, setNotes] = useState('')
   const [report, setReport] = useState('')
-  const [hairstyleImage, setHairstyleImage] = useState('')
-  const [hairstyleError, setHairstyleError] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false)
@@ -175,11 +173,9 @@ function App() {
     event.preventDefault()
     setError('')
     setReport('')
-    setHairstyleImage('')
-    setHairstyleError('')
 
-    if (!height || !weight) {
-      setError('키와 몸무게를 입력해 주세요.')
+    if (!height || !fitPreference) {
+      setError('키와 선호하는 핏을 입력해 주세요.')
       return
     }
 
@@ -199,7 +195,7 @@ function App() {
         },
         body: JSON.stringify({
           heightCm: Number(height),
-          weightKg: Number(weight),
+          fitPreference,
           notes: notes.trim(),
           photoDataUrl,
         }),
@@ -212,11 +208,9 @@ function App() {
       }
 
       setReport(payload.reportText)
-      setHairstyleImage(payload.hairstyleImageDataUrl ?? '')
-      setHairstyleError(payload.hairstyleError ?? '')
       setReportProfile({
         height,
-        weight,
+        fitPreference,
         notes: notes.trim(),
         photoPreview,
       })
@@ -245,8 +239,6 @@ function App() {
         <ReportPage
           profile={reportProfile}
           report={report}
-          hairstyleImage={hairstyleImage}
-          hairstyleError={hairstyleError}
           onBack={() => {
             setView('home')
             window.setTimeout(() => {
@@ -344,7 +336,7 @@ function App() {
             <p className="section-label">Start Report</p>
             <h2 id="diagnosis-title">나만의 스타일 리포트 받기</h2>
             <p>
-              사진과 기본 정보를 입력하면 AI가 체형, 핏, 색감, 헤어 무드까지
+              사진과 기본 정보를 입력하면 AI가 의류 핏, 색감, 코디 방향을
               하나의 리포트로 정리합니다.
             </p>
           </div>
@@ -388,18 +380,18 @@ function App() {
               </label>
 
               <label className="field">
-                <span>몸무게</span>
+                <span>선호 핏</span>
                 <div className="input-unit">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min="30"
-                    max="200"
-                    placeholder="60"
-                    value={weight}
-                    onChange={(event) => setWeight(event.target.value)}
-                  />
-                  <span>kg</span>
+                  <select
+                    value={fitPreference}
+                    onChange={(event) => setFitPreference(event.target.value)}
+                  >
+                    <option value="">선택</option>
+                    <option value="정돈된 레귤러 핏">레귤러</option>
+                    <option value="여유 있는 세미 오버핏">세미 오버</option>
+                    <option value="단정한 슬림/스트레이트 핏">슬림/스트레이트</option>
+                    <option value="편안한 루즈 핏">루즈</option>
+                  </select>
                 </div>
               </label>
             </div>
@@ -407,11 +399,16 @@ function App() {
             <label className="field">
               <span>추가 정보</span>
               <textarea
-                placeholder="예: 얼굴형, 평소 스타일, 선호 색상, 고민되는 핏"
+                placeholder="예: 평소 스타일, 선호 색상, 고민되는 핏"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
               />
             </label>
+
+            <p className="compliance-note">
+              만 18세 이상 일반 의류 스타일링 전용입니다. 의료, 건강, 다이어트,
+              성인 콘텐츠, 얼굴 합성/이미지 생성 요청은 처리하지 않습니다.
+            </p>
 
             {error ? <p className="form-error">{error}</p> : null}
 
@@ -461,14 +458,10 @@ function TopBar({ onBrandClick }: { onBrandClick?: () => void }) {
 function ReportPage({
   profile,
   report,
-  hairstyleImage,
-  hairstyleError,
   onBack,
 }: {
   profile: ReportProfile
   report: string
-  hairstyleImage: string
-  hairstyleError: string
   onBack: () => void
 }) {
   const insights = buildReportInsights(report, profile)
@@ -545,21 +538,6 @@ function ReportPage({
         </div>
         <p className="palette-copy">{insights.paletteCopy}</p>
       </section>
-
-      {hairstyleImage || hairstyleError ? (
-        <section className="report-section">
-          <p className="section-label">Hair Direction</p>
-          <h2>Hair Styling Board</h2>
-          {hairstyleImage ? (
-            <figure className="report-hair-board">
-              <img src={hairstyleImage} alt="사용자 얼굴을 유지한 헤어스타일 추천 보드" />
-              <figcaption>얼굴은 유지하고 헤어스타일만 바꾼 3x3 추천 보드</figcaption>
-            </figure>
-          ) : (
-            <p className="report-note">{hairstyleError}</p>
-          )}
-        </section>
-      ) : null}
 
       <section className="report-section ai-report">
         <p className="section-label">Full Report</p>
@@ -668,15 +646,13 @@ function findSection(sections: Array<{ heading: string; body: string }>, keyword
 
 function buildReportTitle(bodySection: string, styleSection: string, profile: ReportProfile) {
   const height = Number(profile.height)
-  const weight = Number(profile.weight)
-  const bmi = weight / (height / 100) ** 2
-  const source = `${bodySection}\n${styleSection}`.toLowerCase()
+  const source = `${bodySection}\n${styleSection}\n${profile.fitPreference}`.toLowerCase()
 
-  if (/롱|길어|슬림|마른|lean|column/.test(source) || (Number.isFinite(bmi) && bmi < 20)) {
+  if (/롱|길어|슬림|스트레이트|lean|column/.test(source) || height >= 175) {
     return 'LEAN COLUMN'
   }
 
-  if (/오버핏|세미오버|볼륨|탄탄|volume/.test(source) || (Number.isFinite(bmi) && bmi > 24)) {
+  if (/오버핏|세미오버|루즈|볼륨|volume/.test(source)) {
     return 'BALANCED VOLUME'
   }
 
