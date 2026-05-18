@@ -143,7 +143,7 @@ function App() {
         }),
       })
 
-      const payload = await response.json()
+      const payload = await parseJsonResponse(response)
 
       if (!response.ok) {
         throw new Error(payload.error ?? '스타일 보고서를 생성하지 못했습니다.')
@@ -386,6 +386,27 @@ function readFileAsDataUrl(file: File) {
     reader.addEventListener('error', () => reject(reader.error))
     reader.readAsDataURL(file)
   })
+}
+
+async function parseJsonResponse(response: Response) {
+  const responseText = await response.text()
+
+  if (!responseText.trim()) {
+    return {
+      error:
+        response.status === 404
+          ? '스타일 진단 API를 찾지 못했습니다. 로컬 서버 설정을 확인해 주세요.'
+          : '스타일 진단 API가 빈 응답을 반환했습니다.',
+    }
+  }
+
+  try {
+    return JSON.parse(responseText)
+  } catch {
+    return {
+      error: '스타일 진단 API가 올바른 JSON 응답을 반환하지 않았습니다.',
+    }
+  }
 }
 
 export default App

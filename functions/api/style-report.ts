@@ -37,121 +37,133 @@ const hairstylePrompt = [
 ].join('\n')
 
 export async function onRequestPost({ request, env }: PagesContext) {
-  if (!env.OPENAI_API_KEY) {
-    return json({ error: 'OPENAI_API_KEY 환경 변수가 설정되어 있지 않습니다.' }, 500)
-  }
-
-  let body: StyleReportRequest
-
   try {
-    body = await request.json()
-  } catch {
-    return json({ error: '요청 형식이 올바르지 않습니다.' }, 400)
-  }
+    if (!env.OPENAI_API_KEY) {
+      return json({ error: 'OPENAI_API_KEY 환경 변수가 설정되어 있지 않습니다.' }, 500)
+    }
 
-  const heightCm = Number(body.heightCm)
-  const weightKg = Number(body.weightKg)
+    let body: StyleReportRequest
 
-  if (!Number.isFinite(heightCm) || heightCm < 120 || heightCm > 230) {
-    return json({ error: '키는 120cm에서 230cm 사이로 입력해 주세요.' }, 400)
-  }
+    try {
+      body = (await request.json()) as StyleReportRequest
+    } catch {
+      return json({ error: '요청 형식이 올바르지 않습니다.' }, 400)
+    }
 
-  if (!Number.isFinite(weightKg) || weightKg < 30 || weightKg > 200) {
-    return json({ error: '몸무게는 30kg에서 200kg 사이로 입력해 주세요.' }, 400)
-  }
+    const heightCm = Number(body.heightCm)
+    const weightKg = Number(body.weightKg)
 
-  const notes = typeof body.notes === 'string' ? body.notes.trim().slice(0, 1000) : ''
-  const userPrompt = [`키 ${heightCm}, 몸무게 ${weightKg}`, notes]
-    .filter(Boolean)
-    .join('\n')
+    if (!Number.isFinite(heightCm) || heightCm < 120 || heightCm > 230) {
+      return json({ error: '키는 120cm에서 230cm 사이로 입력해 주세요.' }, 400)
+    }
 
-  const content: Array<Record<string, string>> = [
-    {
-      type: 'input_text',
-      text: userPrompt,
-    },
-  ]
+    if (!Number.isFinite(weightKg) || weightKg < 30 || weightKg > 200) {
+      return json({ error: '몸무게는 30kg에서 200kg 사이로 입력해 주세요.' }, 400)
+    }
 
-  if (body.photoDataUrl) {
-    content.push({
-      type: 'input_image',
-      image_url: body.photoDataUrl,
+    const notes = typeof body.notes === 'string' ? body.notes.trim().slice(0, 1000) : ''
+    const userPrompt = [`키 ${heightCm}, 몸무게 ${weightKg}`, notes]
+      .filter(Boolean)
+      .join('\n')
+
+    const content: Array<Record<string, string>> = [
+      {
+        type: 'input_text',
+        text: userPrompt,
+      },
+    ]
+
+    if (body.photoDataUrl) {
+      content.push({
+        type: 'input_image',
+        image_url: body.photoDataUrl,
+      })
+    }
+
+    const openAiResponse = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-5.4-mini',
+        input: [
+          {
+            role: 'developer',
+            content: [
+              {
+                type: 'input_text',
+                text: developerPrompt,
+              },
+            ],
+          },
+          {
+            role: 'user',
+            content,
+          },
+        ],
+        text: {
+          format: {
+            type: 'text',
+          },
+          verbosity: 'medium',
+        },
+        reasoning: {
+          effort: 'medium',
+          summary: 'auto',
+        },
+        tools: [],
+        store: true,
+      }),
     })
-  }
 
-  const openAiResponse = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-5.4-mini',
-      input: [
+    const payload = await parseJsonResponse(openAiResponse)
+
+    if (!openAiResponse.ok) {
+      return json(
         {
-          role: 'developer',
-          content: [
-            {
-              type: 'input_text',
-              text: developerPrompt,
-            },
-          ],
+          error:
+            getErrorMessage(payload) ??
+            'OpenAI API에서 스타일 보고서를 생성하지 못했습니다.',
         },
-        {
-          role: 'user',
-          content,
-        },
-      ],
-      text: {
-        format: {
-          type: 'text',
-        },
-        verbosity: 'medium',
-      },
-      reasoning: {
-        effort: 'medium',
-        summary: 'auto',
-      },
-      tools: [],
-      store: true,
-    }),
-  })
+        openAiResponse.status,
+      )
+    }
 
-  const payload = await openAiResponse.json()
+    const reportText = extractOutputText(payload)
 
-  if (!openAiResponse.ok) {
+    if (!reportText) {
+      return json({ error: 'OpenAI 응답에서 보고서 텍스트를 찾지 못했습니다.' }, 502)
+    }
+
+    if (!body.photoDataUrl) {
+      return json({
+        reportText,
+        hairstyleError: '사진이 없어 헤어스타일 이미지는 생성하지 않았습니다.',
+      })
+    }
+
+    const hairstyleResult = await createHairstyleGridImage({
+      apiKey: env.OPENAI_API_KEY,
+      photoDataUrl: body.photoDataUrl,
+    })
+
+    return json({
+      reportText,
+      ...hairstyleResult,
+    })
+  } catch (error) {
     return json(
       {
         error:
-          payload.error?.message ??
-          'OpenAI API에서 스타일 보고서를 생성하지 못했습니다.',
+          error instanceof Error
+            ? error.message
+            : '스타일 보고서를 생성하는 중 오류가 발생했습니다.',
       },
-      openAiResponse.status,
+      500,
     )
   }
-
-  const reportText = extractOutputText(payload)
-
-  if (!reportText) {
-    return json({ error: 'OpenAI 응답에서 보고서 텍스트를 찾지 못했습니다.' }, 502)
-  }
-
-  if (!body.photoDataUrl) {
-    return json({
-      reportText,
-      hairstyleError: '사진이 없어 헤어스타일 이미지는 생성하지 않았습니다.',
-    })
-  }
-
-  const hairstyleResult = await createHairstyleGridImage({
-    apiKey: env.OPENAI_API_KEY,
-    photoDataUrl: body.photoDataUrl,
-  })
-
-  return json({
-    reportText,
-    ...hairstyleResult,
-  })
 }
 
 export function onRequestOptions() {
@@ -240,12 +252,11 @@ async function createHairstyleGridImage({
     body: form,
   })
 
-  const payload = await imageResponse.json()
+  const payload = await parseJsonResponse(imageResponse)
 
   if (!imageResponse.ok) {
     return {
-      hairstyleError:
-        payload.error?.message ?? '헤어스타일 이미지를 생성하지 못했습니다.',
+      hairstyleError: getErrorMessage(payload) ?? '헤어스타일 이미지를 생성하지 못했습니다.',
     }
   }
 
@@ -277,4 +288,32 @@ function extensionForType(type: string) {
   }
 
   return 'jpg'
+}
+
+async function parseJsonResponse(response: Response) {
+  const responseText = await response.text()
+
+  if (!responseText.trim()) {
+    return null
+  }
+
+  try {
+    return JSON.parse(responseText)
+  } catch {
+    return null
+  }
+}
+
+function getErrorMessage(payload: unknown) {
+  if (!payload || typeof payload !== 'object' || !('error' in payload)) {
+    return null
+  }
+
+  const { error } = payload
+
+  if (!error || typeof error !== 'object' || !('message' in error)) {
+    return null
+  }
+
+  return typeof error.message === 'string' ? error.message : null
 }
