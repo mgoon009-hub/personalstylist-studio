@@ -9,31 +9,24 @@ type PagesContext = {
 
 type StyleReportRequest = {
   heightCm?: number
-  weightKg?: number
+  fitPreference?: string
   notes?: string
   photoDataUrl?: string | null
 }
 
 const developerPrompt = [
   '당신은 전문 퍼스널 스타일리스트입니다.',
-  '사용자의 사진과 신체 정보를 분석하여 맞춤형 스타일 컨설팅 보고서를 작성해주세요.',
+  '사용자의 선택 입력과 선택적으로 제공된 의상/전신 사진을 참고하여 맞춤형 의류 스타일 컨설팅 보고서를 작성해주세요.',
   '보고서에는 다음 내용을 포함해주세요.',
-  '1. 체형분석',
+  '1. 실루엣 및 핏 분석',
   '2. 퍼스널 컬러 추천',
   '3. 어울리는 스타일 및 패션 아이템 추천',
   '4. 피해야 할 스타일',
   '5. 코디 팁',
   '친절하고 전문적인 톤으로 작성해주세요.',
-  '의학적 진단, 다이어트 처방, 건강 조언은 하지 말고 옷의 핏과 스타일링 중심으로 답변하세요.',
-].join('\n')
-
-const hairstylePrompt = [
-  '너는 최고의 헤어스타일리스트야.',
-  '3x3 그리드 이미지로, 첨부한 사진 속 사람에게 가장 잘 어울리는 헤어스타일 9개를 생성해줘.',
-  '각 칸에는 헤어스타일 이름과 짧은 설명을 한국어로 넣어줘.',
-  '첨부한 사람의 얼굴, 이목구비, 표정, 피부톤, 얼굴형은 절대 바꾸지 말고 기존 얼굴 그대로 유지해.',
-  '머리카락의 길이, 볼륨, 앞머리, 가르마, 질감, 컬러 톤 등 헤어스타일만 바꿔줘.',
-  '자연스럽고 실제 미용실 상담 자료처럼 깔끔한 3x3 비교 보드로 만들어줘.',
+  '의학적 진단, 건강 조언, 다이어트/체중 감량 조언, 신체 평가, 민감한 속성 추정, 나이 추정, 신원 식별은 절대 하지 마세요.',
+  '사진이 있더라도 얼굴을 식별하거나 변형하지 말고, 이미지 생성/편집/딥페이크/페이스스왑 관련 내용은 제공하지 마세요.',
+  '만 18세 이상 사용자를 대상으로 한 일반 의류 스타일링 조언만 제공하세요.',
 ].join('\n')
 
 export async function onRequestPost({ request, env }: PagesContext) {
@@ -51,18 +44,29 @@ export async function onRequestPost({ request, env }: PagesContext) {
     }
 
     const heightCm = Number(body.heightCm)
-    const weightKg = Number(body.weightKg)
+    const fitPreference =
+      typeof body.fitPreference === 'string' ? body.fitPreference.trim().slice(0, 80) : ''
 
     if (!Number.isFinite(heightCm) || heightCm < 120 || heightCm > 230) {
       return json({ error: '키는 120cm에서 230cm 사이로 입력해 주세요.' }, 400)
     }
 
-    if (!Number.isFinite(weightKg) || weightKg < 30 || weightKg > 200) {
-      return json({ error: '몸무게는 30kg에서 200kg 사이로 입력해 주세요.' }, 400)
+    if (!fitPreference) {
+      return json({ error: '선호하는 핏을 선택해 주세요.' }, 400)
     }
 
     const notes = typeof body.notes === 'string' ? body.notes.trim().slice(0, 1000) : ''
-    const userPrompt = [`키 ${heightCm}, 몸무게 ${weightKg}`, notes]
+    const policyError = validateAllowedStyleRequest(`${fitPreference}\n${notes}`)
+
+    if (policyError) {
+      return json({ error: policyError }, 400)
+    }
+
+    const userPrompt = [
+      `키 ${heightCm}cm`,
+      `선호 핏: ${fitPreference}`,
+      notes ? `추가 스타일 정보: ${notes}` : '',
+    ]
       .filter(Boolean)
       .join('\n')
 
@@ -114,7 +118,7 @@ export async function onRequestPost({ request, env }: PagesContext) {
           summary: 'auto',
         },
         tools: [],
-        store: true,
+        store: false,
       }),
     })
 
@@ -137,22 +141,7 @@ export async function onRequestPost({ request, env }: PagesContext) {
       return json({ error: 'OpenAI 응답에서 보고서 텍스트를 찾지 못했습니다.' }, 502)
     }
 
-    if (!body.photoDataUrl) {
-      return json({
-        reportText,
-        hairstyleError: '사진이 없어 헤어스타일 이미지는 생성하지 않았습니다.',
-      })
-    }
-
-    const hairstyleResult = await createHairstyleGridImage({
-      apiKey: env.OPENAI_API_KEY,
-      photoDataUrl: body.photoDataUrl,
-    })
-
-    return json({
-      reportText,
-      ...hairstyleResult,
-    })
+    return json({ reportText })
   } catch (error) {
     return json(
       {
@@ -224,72 +213,6 @@ function extractOutputText(payload: unknown) {
     .trim()
 }
 
-async function createHairstyleGridImage({
-  apiKey,
-  photoDataUrl,
-}: {
-  apiKey: string
-  photoDataUrl: string
-}) {
-  const imageBlob = await dataUrlToBlob(photoDataUrl)
-  const form = new FormData()
-
-  form.append('image', imageBlob, `portrait.${extensionForType(imageBlob.type)}`)
-  form.append('prompt', hairstylePrompt)
-  form.append('model', 'gpt-image-1.5')
-  form.append('n', '1')
-  form.append('size', 'auto')
-  form.append('quality', 'auto')
-  form.append('background', 'auto')
-  form.append('moderation', 'auto')
-  form.append('input_fidelity', 'high')
-
-  const imageResponse = await fetch('https://api.openai.com/v1/images/edits', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: form,
-  })
-
-  const payload = await parseJsonResponse(imageResponse)
-
-  if (!imageResponse.ok) {
-    return {
-      hairstyleError: getErrorMessage(payload) ?? '헤어스타일 이미지를 생성하지 못했습니다.',
-    }
-  }
-
-  const b64Json = payload.data?.[0]?.b64_json
-
-  if (typeof b64Json !== 'string' || !b64Json) {
-    return {
-      hairstyleError: 'OpenAI 이미지 응답에서 생성 이미지를 찾지 못했습니다.',
-    }
-  }
-
-  return {
-    hairstyleImageDataUrl: `data:image/png;base64,${b64Json}`,
-  }
-}
-
-async function dataUrlToBlob(dataUrl: string) {
-  const response = await fetch(dataUrl)
-  return response.blob()
-}
-
-function extensionForType(type: string) {
-  if (type === 'image/png') {
-    return 'png'
-  }
-
-  if (type === 'image/webp') {
-    return 'webp'
-  }
-
-  return 'jpg'
-}
-
 async function parseJsonResponse(response: Response) {
   const responseText = await response.text()
 
@@ -302,6 +225,23 @@ async function parseJsonResponse(response: Response) {
   } catch {
     return null
   }
+}
+
+function validateAllowedStyleRequest(text: string) {
+  const normalizedText = text.toLowerCase()
+  const disallowedPatterns = [
+    /미성년|아동|어린이|초등학생|중학생|고등학생|teen|minor|child/,
+    /다이어트|체중\s?감량|살\s?빼|bmi|비만|저체중|건강|의학|의료|질병|진단|처방|섭식/,
+    /성인|야한|누드|nsfw|adult|onlyfans/,
+    /딥페이크|페이스\s?스왑|face\s?swap|deepfake|얼굴\s?합성/,
+    /투자|코인|암호화폐|도박|베팅|복권|의약품|담배|전자담배|주류/,
+  ]
+
+  if (disallowedPatterns.some((pattern) => pattern.test(normalizedText))) {
+    return 'Polar 정책 준수를 위해 일반 의류 스타일링 범위를 벗어난 요청은 처리할 수 없습니다.'
+  }
+
+  return ''
 }
 
 function getErrorMessage(payload: unknown) {
