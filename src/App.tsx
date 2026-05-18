@@ -44,6 +44,59 @@ const processSteps = [
   },
 ]
 
+const reportHeroImage =
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuDDiZGGQBCX8Pa4gtTvsqDE6c8iJIRSII9s_cT_EIqDOuaMolbE18_Q-wNydx-gQq8yfIyrz3e880gyfqwS278fUEqpU5cK_j4dDz9ys3rTXMizkYtpnZ1x-15NKnHllOaogYvZXVIg-oTUilpbhq_lya9AerJviTxtWH88x3XFfQzwpd6R4yzgIxjgttdcXumtKiw1gevbDA-AdaHFpRgbzNN7xvm9SDXnUTRZhIsJfDF8uOcCBtdjofKmTQ6WT375OmO4mIBpWes'
+
+const reportPicks = [
+  {
+    title: 'Minimalist Chic',
+    meta: 'Essential / Timeless',
+    image:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuCrqcpQKvWF_p9hZRT2hSOZW0BlWQ0d6W6nJPSUEHm6xAI3R4_qTpu-qRk7FfKUCy6z6v-Pi-WbDLbQQUhiQNCinXty2bkB0zUDkC4jFu4qZw9U9WwCPMEEx9E52psSBFzIaEIdjZp--NKCESAbP4Q1Wr51UFBSOs0eYL052oXf8ZDKJQt0aa5JXOkkzMEc4P57mEZobh2fqDgyBdTZXPXHq27fxsKhULZvGxC0yRBCYUQEOlTt7c77pWTsc58M5Rcb0AnRFR1GklM',
+  },
+  {
+    title: 'Urban Sophisticate',
+    meta: 'Modern / Sharp',
+    image:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuALm9xIWhirQiltaCtgghhsQOSjOgpOtX61ekHna3jP1Rmn7cuvLhBUqqfdRZRkNoz0TBYKWfA8PFqt6Ks2KtOGNgbO9e9lQG-cnsCved4xZvXAk5btenO5IigyoilGnAoctTbdN8VfIqSaD5xI-WsJBTxHott6tqpYPn1mknrcEhDtRJlc5czCvs2RHxAi3Dm38CK90r8vvUFZuN0gQI2cWTj1cz8VWVaozx2ueEBclCAfMpf1ZvrsZ0zYl1g68jyao7GRV4Bcbmw',
+  },
+]
+
+const fitGuide = [
+  {
+    icon: 'checkroom',
+    title: '테일러드 아우터',
+    copy: '어깨 라인이 정돈된 블레이저는 전체 실루엣을 구조적으로 잡아줍니다.',
+  },
+  {
+    icon: 'unfold_more',
+    title: '와이드 레그 슬랙스',
+    copy: '하이웨이스트 팬츠는 하체 라인을 길게 연장하고 안정적인 비율을 만듭니다.',
+  },
+  {
+    icon: 'architecture',
+    title: '비대칭 드레이핑',
+    copy: '단조로울 수 있는 직선 실루엣에 리듬감 있는 포인트를 더합니다.',
+  },
+]
+
+const palette = [
+  { name: 'Deep Navy', color: '#0f172a' },
+  { name: 'Soft Ivory', color: '#f8f5f2' },
+  { name: 'Cool Silver', color: '#d1d5db' },
+  { name: 'Charcoal', color: '#45464d' },
+  { name: 'Mist Blue', color: '#bec6e0' },
+]
+
+type ReportProfile = {
+  height: string
+  weight: string
+  notes: string
+  photoPreview: string | null
+}
+
+type View = 'home' | 'report'
+
 function App() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -56,6 +109,8 @@ function App() {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false)
+  const [view, setView] = useState<View>('home')
+  const [reportProfile, setReportProfile] = useState<ReportProfile | null>(null)
 
   useEffect(() => {
     return () => {
@@ -152,6 +207,14 @@ function App() {
       setReport(payload.reportText)
       setHairstyleImage(payload.hairstyleImageDataUrl ?? '')
       setHairstyleError(payload.hairstyleError ?? '')
+      setReportProfile({
+        height,
+        weight,
+        notes: notes.trim(),
+        photoPreview,
+      })
+      setView('report')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -163,23 +226,35 @@ function App() {
     }
   }
 
+  if (view === 'report' && reportProfile && report) {
+    return (
+      <>
+        <TopBar
+          onBrandClick={() => {
+            setView('home')
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+          }}
+        />
+        <ReportPage
+          profile={reportProfile}
+          report={report}
+          hairstyleImage={hairstyleImage}
+          hairstyleError={hairstyleError}
+          onBack={() => {
+            setView('home')
+            window.setTimeout(() => {
+              document.getElementById('style-diagnosis')?.scrollIntoView()
+            }, 0)
+          }}
+        />
+        <SiteFooter />
+      </>
+    )
+  }
+
   return (
     <>
-      <header className="top-bar">
-        <button className="icon-button" type="button" aria-label="메뉴 열기">
-          <span className="material-symbols-outlined" aria-hidden="true">
-            menu
-          </span>
-        </button>
-        <a className="brand-name" href="#top" aria-label="STYLIST.AI 홈">
-          STYLIST.AI
-        </a>
-        <button className="icon-button" type="button" aria-label="계정 보기">
-          <span className="material-symbols-outlined" aria-hidden="true">
-            account_circle
-          </span>
-        </button>
-      </header>
+      <TopBar />
 
       <main id="top">
         <section className="hero-section" aria-labelledby="hero-title">
@@ -338,45 +413,220 @@ function App() {
             </button>
           </form>
 
-          {report ? (
-            <article className="report-panel" aria-label="스타일 컨설팅 보고서">
-              <div>
-                <p className="section-label">Report</p>
-                <h3>스타일 컨설팅 보고서</h3>
-              </div>
-
-              {hairstyleImage ? (
-                <figure className="hairstyle-result">
-                  <img
-                    src={hairstyleImage}
-                    alt="사용자 얼굴을 유지한 9가지 헤어스타일 추천 이미지"
-                  />
-                  <figcaption>얼굴은 유지하고 헤어스타일만 바꾼 3x3 추천 보드</figcaption>
-                </figure>
-              ) : null}
-
-              {hairstyleError ? <p className="form-error">{hairstyleError}</p> : null}
-
-              <div className="report-text">{report}</div>
-            </article>
-          ) : null}
         </section>
       </main>
 
-      <footer className="site-footer">
-        <a className="brand-name" href="#top">
-          STYLIST.AI
-        </a>
-        <nav aria-label="푸터 메뉴">
-          <a href="#style-diagnosis">The Methodology</a>
-          <a href="#gallery-title">Style Journal</a>
-          <a href="#style-diagnosis">Privacy</a>
-          <a href="#style-diagnosis">Terms</a>
-        </nav>
-        <p>© 2026 STYLIST.AI. ALL RIGHTS RESERVED.</p>
-      </footer>
+      <SiteFooter />
     </>
   )
+}
+
+function TopBar({ onBrandClick }: { onBrandClick?: () => void }) {
+  return (
+    <header className="top-bar">
+      <button className="icon-button" type="button" aria-label="메뉴 열기">
+        <span className="material-symbols-outlined" aria-hidden="true">
+          menu
+        </span>
+      </button>
+      <a
+        className="brand-name"
+        href="#top"
+        aria-label="STYLIST.AI 홈"
+        onClick={(event) => {
+          if (onBrandClick) {
+            event.preventDefault()
+            onBrandClick()
+          }
+        }}
+      >
+        STYLIST.AI
+      </a>
+      <button className="icon-button" type="button" aria-label="계정 보기">
+        <span className="material-symbols-outlined" aria-hidden="true">
+          account_circle
+        </span>
+      </button>
+    </header>
+  )
+}
+
+function ReportPage({
+  profile,
+  report,
+  hairstyleImage,
+  hairstyleError,
+  onBack,
+}: {
+  profile: ReportProfile
+  report: string
+  hairstyleImage: string
+  hairstyleError: string
+  onBack: () => void
+}) {
+  const archetype = getArchetype(profile)
+  const heroSource = profile.photoPreview ?? reportHeroImage
+
+  return (
+    <main className="report-page" id="top">
+      <section className="report-hero" aria-labelledby="report-title">
+        <div className="report-hero-copy">
+          <p className="section-label">Personal Analysis</p>
+          <h1 id="report-title">{archetype.title}</h1>
+          <p>{archetype.summary}</p>
+          <div className="report-tags" aria-label="스타일 키워드">
+            {archetype.tags.map((tag) => (
+              <span key={tag}>{tag}</span>
+            ))}
+          </div>
+        </div>
+        <figure className="report-portrait">
+          <img src={heroSource} alt="스타일 분석 이미지" />
+        </figure>
+      </section>
+
+      <section className="report-section fit-section">
+        <div className="report-section-heading">
+          <div>
+            <p className="section-label">The Fit Guide</p>
+            <h2>Best Silhouette</h2>
+          </div>
+          <p>분석 결과를 바탕으로 장점은 살리고 전체 비율은 더 정돈하는 방향입니다.</p>
+        </div>
+        <div className="fit-grid">
+          {fitGuide.map((item) => (
+            <article className="fit-card" key={item.title}>
+              <span className="material-symbols-outlined" aria-hidden="true">
+                {item.icon}
+              </span>
+              <h3>{item.title}</h3>
+              <p>{item.copy}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="report-section">
+        <p className="section-label">Selections</p>
+        <h2>Curated Picks</h2>
+        <div className="pick-grid">
+          {reportPicks.map((pick) => (
+            <article className="pick-card" key={pick.title}>
+              <img src={pick.image} alt={`${pick.title} 추천 룩`} />
+              <div>
+                <h3>{pick.title}</h3>
+                <p>{pick.meta}</p>
+              </div>
+              <span className="material-symbols-outlined" aria-hidden="true">
+                arrow_forward
+              </span>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="report-section palette-panel">
+        <p className="section-label">Personal Color</p>
+        <h2>Color Palette</h2>
+        <div className="palette-grid">
+          {palette.map((color) => (
+            <div className="palette-chip" key={color.name}>
+              <span style={{ background: color.color }}></span>
+              <p>{color.name}</p>
+            </div>
+          ))}
+        </div>
+        <p className="palette-copy">
+          깊은 네이비와 차콜을 베이스로 두고, 아이보리와 미스트 블루를 섞으면
+          차분하고 선명한 인상을 만들 수 있습니다.
+        </p>
+      </section>
+
+      {hairstyleImage || hairstyleError ? (
+        <section className="report-section">
+          <p className="section-label">Hair Direction</p>
+          <h2>Hair Styling Board</h2>
+          {hairstyleImage ? (
+            <figure className="report-hair-board">
+              <img src={hairstyleImage} alt="사용자 얼굴을 유지한 헤어스타일 추천 보드" />
+              <figcaption>얼굴은 유지하고 헤어스타일만 바꾼 3x3 추천 보드</figcaption>
+            </figure>
+          ) : (
+            <p className="report-note">{hairstyleError}</p>
+          )}
+        </section>
+      ) : null}
+
+      <section className="report-section ai-report">
+        <p className="section-label">Full Report</p>
+        <h2>AI Styling Notes</h2>
+        <div className="report-text">{report}</div>
+      </section>
+
+      <section className="report-actions" aria-label="리포트 작업">
+        <button className="report-primary-button" type="button" onClick={() => window.print()}>
+          Report 저장하기
+        </button>
+        <button className="report-secondary-button" type="button" onClick={onBack}>
+          다시 진단하기
+        </button>
+      </section>
+
+      <button className="report-fab" type="button" aria-label="AI 스타일 상담">
+        <span className="material-symbols-outlined" aria-hidden="true">
+          auto_awesome
+        </span>
+      </button>
+    </main>
+  )
+}
+
+function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <a className="brand-name" href="#top">
+        STYLIST.AI
+      </a>
+      <nav aria-label="푸터 메뉴">
+        <a href="#style-diagnosis">The Methodology</a>
+        <a href="#gallery-title">Style Journal</a>
+        <a href="#style-diagnosis">Privacy</a>
+        <a href="#style-diagnosis">Terms</a>
+      </nav>
+      <p>© 2026 STYLIST.AI. ALL RIGHTS RESERVED.</p>
+    </footer>
+  )
+}
+
+function getArchetype(profile: ReportProfile) {
+  const height = Number(profile.height)
+  const weight = Number(profile.weight)
+  const bmi = weight / (height / 100) ** 2
+
+  if (Number.isFinite(bmi) && bmi < 20) {
+    return {
+      title: 'LEAN COLUMN',
+      summary:
+        '전체적으로 가볍고 긴 라인이 돋보이는 타입입니다. 레이어링과 소재 대비로 입체감을 더하면 스타일 완성도가 높아집니다.',
+      tags: ['#롱실루엣', '#레이어링', '#클린핏'],
+    }
+  }
+
+  if (Number.isFinite(bmi) && bmi > 24) {
+    return {
+      title: 'BALANCED VOLUME',
+      summary:
+        '안정적인 체형감을 바탕으로 구조적인 핏이 잘 어울립니다. 세로선을 만드는 아우터와 정돈된 컬러 대비가 핵심입니다.',
+      tags: ['#구조적핏', '#세로라인', '#톤정리'],
+    }
+  }
+
+  return {
+    title: 'STRUCTURAL RECTANGLE',
+    summary:
+      '균형 잡힌 어깨와 골반 라인이 특징입니다. 직선적인 실루엣의 세련미를 살리면서 허리선과 레이어를 더하는 스타일링이 잘 맞습니다.',
+    tags: ['#직선적실루엣', '#모던에센셜', '#테일러드'],
+  }
 }
 
 function readFileAsDataUrl(file: File) {
