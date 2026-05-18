@@ -47,45 +47,30 @@ const processSteps = [
 const reportHeroImage =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuDDiZGGQBCX8Pa4gtTvsqDE6c8iJIRSII9s_cT_EIqDOuaMolbE18_Q-wNydx-gQq8yfIyrz3e880gyfqwS278fUEqpU5cK_j4dDz9ys3rTXMizkYtpnZ1x-15NKnHllOaogYvZXVIg-oTUilpbhq_lya9AerJviTxtWH88x3XFfQzwpd6R4yzgIxjgttdcXumtKiw1gevbDA-AdaHFpRgbzNN7xvm9SDXnUTRZhIsJfDF8uOcCBtdjofKmTQ6WT375OmO4mIBpWes'
 
-const reportPicks = [
+const reportPickImages = [
   {
-    title: 'Minimalist Chic',
-    meta: 'Essential / Timeless',
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCrqcpQKvWF_p9hZRT2hSOZW0BlWQ0d6W6nJPSUEHm6xAI3R4_qTpu-qRk7FfKUCy6z6v-Pi-WbDLbQQUhiQNCinXty2bkB0zUDkC4jFu4qZw9U9WwCPMEEx9E52psSBFzIaEIdjZp--NKCESAbP4Q1Wr51UFBSOs0eYL052oXf8ZDKJQt0aa5JXOkkzMEc4P57mEZobh2fqDgyBdTZXPXHq27fxsKhULZvGxC0yRBCYUQEOlTt7c77pWTsc58M5Rcb0AnRFR1GklM',
   },
   {
-    title: 'Urban Sophisticate',
-    meta: 'Modern / Sharp',
     image:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuALm9xIWhirQiltaCtgghhsQOSjOgpOtX61ekHna3jP1Rmn7cuvLhBUqqfdRZRkNoz0TBYKWfA8PFqt6Ks2KtOGNgbO9e9lQG-cnsCved4xZvXAk5btenO5IigyoilGnAoctTbdN8VfIqSaD5xI-WsJBTxHott6tqpYPn1mknrcEhDtRJlc5czCvs2RHxAi3Dm38CK90r8vvUFZuN0gQI2cWTj1cz8VWVaozx2ueEBclCAfMpf1ZvrsZ0zYl1g68jyao7GRV4Bcbmw',
   },
 ]
 
-const fitGuide = [
-  {
-    icon: 'checkroom',
-    title: '테일러드 아우터',
-    copy: '어깨 라인이 정돈된 블레이저는 전체 실루엣을 구조적으로 잡아줍니다.',
-  },
-  {
-    icon: 'unfold_more',
-    title: '와이드 레그 슬랙스',
-    copy: '하이웨이스트 팬츠는 하체 라인을 길게 연장하고 안정적인 비율을 만듭니다.',
-  },
-  {
-    icon: 'architecture',
-    title: '비대칭 드레이핑',
-    copy: '단조로울 수 있는 직선 실루엣에 리듬감 있는 포인트를 더합니다.',
-  },
-]
+const fitIcons = ['checkroom', 'unfold_more', 'architecture']
 
-const palette = [
-  { name: 'Deep Navy', color: '#0f172a' },
-  { name: 'Soft Ivory', color: '#f8f5f2' },
-  { name: 'Cool Silver', color: '#d1d5db' },
-  { name: 'Charcoal', color: '#45464d' },
-  { name: 'Mist Blue', color: '#bec6e0' },
+const colorTokens = [
+  { name: 'Deep Navy', color: '#0f172a', keywords: ['네이비', 'navy'] },
+  { name: 'Soft Ivory', color: '#f8f5f2', keywords: ['아이보리', '크림', 'ivory'] },
+  { name: 'Cool Silver', color: '#d1d5db', keywords: ['실버', 'silver'] },
+  { name: 'Charcoal', color: '#45464d', keywords: ['차콜', 'charcoal'] },
+  { name: 'Mist Blue', color: '#bec6e0', keywords: ['블루', 'blue'] },
+  { name: 'Clean White', color: '#ffffff', keywords: ['화이트', 'white'] },
+  { name: 'Soft Beige', color: '#d8c8ad', keywords: ['베이지', 'beige'] },
+  { name: 'Deep Black', color: '#111111', keywords: ['블랙', 'black'] },
+  { name: 'Olive Khaki', color: '#68705b', keywords: ['카키', '올리브', 'khaki'] },
+  { name: 'Burgundy', color: '#6f1d2f', keywords: ['버건디', 'burgundy'] },
 ]
 
 type ReportProfile = {
@@ -96,6 +81,28 @@ type ReportProfile = {
 }
 
 type View = 'home' | 'report'
+
+type ReportInsights = {
+  title: string
+  summary: string
+  tags: string[]
+  fitIntro: string
+  fitItems: Array<{
+    icon: string
+    title: string
+    copy: string
+  }>
+  picks: Array<{
+    title: string
+    meta: string
+    image: string
+  }>
+  palette: Array<{
+    name: string
+    color: string
+  }>
+  paletteCopy: string
+}
 
 function App() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -464,7 +471,7 @@ function ReportPage({
   hairstyleError: string
   onBack: () => void
 }) {
-  const archetype = getArchetype(profile)
+  const insights = buildReportInsights(report, profile)
   const heroSource = profile.photoPreview ?? reportHeroImage
 
   return (
@@ -472,10 +479,10 @@ function ReportPage({
       <section className="report-hero" aria-labelledby="report-title">
         <div className="report-hero-copy">
           <p className="section-label">Personal Analysis</p>
-          <h1 id="report-title">{archetype.title}</h1>
-          <p>{archetype.summary}</p>
+          <h1 id="report-title">{insights.title}</h1>
+          <p>{insights.summary}</p>
           <div className="report-tags" aria-label="스타일 키워드">
-            {archetype.tags.map((tag) => (
+            {insights.tags.map((tag) => (
               <span key={tag}>{tag}</span>
             ))}
           </div>
@@ -491,10 +498,10 @@ function ReportPage({
             <p className="section-label">The Fit Guide</p>
             <h2>Best Silhouette</h2>
           </div>
-          <p>분석 결과를 바탕으로 장점은 살리고 전체 비율은 더 정돈하는 방향입니다.</p>
+          <p>{insights.fitIntro}</p>
         </div>
         <div className="fit-grid">
-          {fitGuide.map((item) => (
+          {insights.fitItems.map((item) => (
             <article className="fit-card" key={item.title}>
               <span className="material-symbols-outlined" aria-hidden="true">
                 {item.icon}
@@ -510,7 +517,7 @@ function ReportPage({
         <p className="section-label">Selections</p>
         <h2>Curated Picks</h2>
         <div className="pick-grid">
-          {reportPicks.map((pick) => (
+          {insights.picks.map((pick) => (
             <article className="pick-card" key={pick.title}>
               <img src={pick.image} alt={`${pick.title} 추천 룩`} />
               <div>
@@ -529,17 +536,14 @@ function ReportPage({
         <p className="section-label">Personal Color</p>
         <h2>Color Palette</h2>
         <div className="palette-grid">
-          {palette.map((color) => (
+          {insights.palette.map((color) => (
             <div className="palette-chip" key={color.name}>
               <span style={{ background: color.color }}></span>
               <p>{color.name}</p>
             </div>
           ))}
         </div>
-        <p className="palette-copy">
-          깊은 네이비와 차콜을 베이스로 두고, 아이보리와 미스트 블루를 섞으면
-          차분하고 선명한 인상을 만들 수 있습니다.
-        </p>
+        <p className="palette-copy">{insights.paletteCopy}</p>
       </section>
 
       {hairstyleImage || hairstyleError ? (
@@ -598,35 +602,213 @@ function SiteFooter() {
   )
 }
 
-function getArchetype(profile: ReportProfile) {
+function buildReportInsights(report: string, profile: ReportProfile): ReportInsights {
+  const sections = extractSections(report)
+  const bodySection = findSection(sections, ['체형', '분석']) || report
+  const styleSection = findSection(sections, ['어울리는', '스타일', '아이템', '추천']) || report
+  const colorSection = findSection(sections, ['퍼스널', '컬러', '색']) || report
+  const tipSection = findSection(sections, ['코디', '팁']) || styleSection
+  const title = buildReportTitle(bodySection, styleSection, profile)
+  const summary = summarizeFromText(bodySection, report)
+  const tags = buildTags([bodySection, styleSection, tipSection].join('\n'))
+  const fitItems = buildFitItems(styleSection, tipSection)
+  const picks = buildPicks(styleSection)
+  const palette = buildPalette(colorSection)
+
+  return {
+    title,
+    summary,
+    tags,
+    fitIntro: summarizeFromText(tipSection, styleSection),
+    fitItems,
+    picks,
+    palette,
+    paletteCopy: summarizeFromText(colorSection, report),
+  }
+}
+
+function extractSections(report: string) {
+  const sections: Array<{ heading: string; body: string }> = []
+  const lines = report.split(/\r?\n/)
+  let currentHeading = 'overview'
+  let currentBody: string[] = []
+
+  for (const line of lines) {
+    const heading = line
+      .replace(/^[-*\s#]+/, '')
+      .replace(/^\d+[).]\s*/, '')
+      .trim()
+
+    if (heading && heading.length < 80 && /분석|컬러|추천|스타일|아이템|피해야|코디|팁|총평/i.test(heading)) {
+      if (currentBody.length) {
+        sections.push({ heading: currentHeading, body: currentBody.join('\n').trim() })
+      }
+
+      currentHeading = heading
+      currentBody = []
+    } else {
+      currentBody.push(line)
+    }
+  }
+
+  if (currentBody.length) {
+    sections.push({ heading: currentHeading, body: currentBody.join('\n').trim() })
+  }
+
+  return sections
+}
+
+function findSection(sections: Array<{ heading: string; body: string }>, keywords: string[]) {
+  const matchedSection = sections.find((section) =>
+    keywords.some((keyword) => section.heading.includes(keyword)),
+  )
+
+  return matchedSection?.body.trim() ?? ''
+}
+
+function buildReportTitle(bodySection: string, styleSection: string, profile: ReportProfile) {
   const height = Number(profile.height)
   const weight = Number(profile.weight)
   const bmi = weight / (height / 100) ** 2
+  const source = `${bodySection}\n${styleSection}`.toLowerCase()
 
-  if (Number.isFinite(bmi) && bmi < 20) {
-    return {
-      title: 'LEAN COLUMN',
-      summary:
-        '전체적으로 가볍고 긴 라인이 돋보이는 타입입니다. 레이어링과 소재 대비로 입체감을 더하면 스타일 완성도가 높아집니다.',
-      tags: ['#롱실루엣', '#레이어링', '#클린핏'],
-    }
+  if (/롱|길어|슬림|마른|lean|column/.test(source) || (Number.isFinite(bmi) && bmi < 20)) {
+    return 'LEAN COLUMN'
   }
 
-  if (Number.isFinite(bmi) && bmi > 24) {
-    return {
-      title: 'BALANCED VOLUME',
-      summary:
-        '안정적인 체형감을 바탕으로 구조적인 핏이 잘 어울립니다. 세로선을 만드는 아우터와 정돈된 컬러 대비가 핵심입니다.',
-      tags: ['#구조적핏', '#세로라인', '#톤정리'],
-    }
+  if (/오버핏|세미오버|볼륨|탄탄|volume/.test(source) || (Number.isFinite(bmi) && bmi > 24)) {
+    return 'BALANCED VOLUME'
   }
 
-  return {
-    title: 'STRUCTURAL RECTANGLE',
-    summary:
-      '균형 잡힌 어깨와 골반 라인이 특징입니다. 직선적인 실루엣의 세련미를 살리면서 허리선과 레이어를 더하는 스타일링이 잘 맞습니다.',
-    tags: ['#직선적실루엣', '#모던에센셜', '#테일러드'],
+  if (/미니멀|테일러드|자켓|슬랙스|구조|균형|직선/.test(source)) {
+    return 'STRUCTURAL BALANCE'
   }
+
+  return 'PERSONAL FIT MAP'
+}
+
+function summarizeFromText(primaryText: string, fallbackText: string) {
+  const sentences = normalizeReportText(primaryText || fallbackText)
+    .split(/(?<=[.!?。]|다\.|요\.)\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 18)
+
+  return sentences.slice(0, 2).join(' ') || normalizeReportText(fallbackText).slice(0, 180)
+}
+
+function normalizeReportText(text: string) {
+  return text
+    .replace(/\*\*/g, '')
+    .replace(/^[-*]\s+/gm, '')
+    .replace(/^\d+[).]\s+/gm, '')
+    .replace(/#{1,6}\s*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function buildTags(source: string) {
+  const tagRules = [
+    { keyword: /미니멀|깔끔|단정/, tag: '#미니멀' },
+    { keyword: /세미\s?핏|세미오버|여유/, tag: '#세미핏' },
+    { keyword: /테일러드|자켓|블레이저/, tag: '#테일러드' },
+    { keyword: /하이웨이스트|허리선|허리/, tag: '#허리선강조' },
+    { keyword: /톤온톤|컬러|배색/, tag: '#컬러밸런스' },
+    { keyword: /슬랙스|스트레이트|일자/, tag: '#스트레이트라인' },
+    { keyword: /레이어|아우터|겹쳐/, tag: '#레이어링' },
+  ]
+
+  const tags = tagRules
+    .filter((rule) => rule.keyword.test(source))
+    .map((rule) => rule.tag)
+    .slice(0, 3)
+
+  return tags.length ? tags : ['#AI분석', '#개인맞춤', '#스타일리포트']
+}
+
+function buildFitItems(styleSection: string, tipSection: string) {
+  const candidates = [...extractListItems(styleSection), ...extractListItems(tipSection)]
+    .filter((item) => item.title.length > 1 && item.copy.length > 8)
+    .slice(0, 3)
+
+  if (candidates.length >= 3) {
+    return candidates.map((item, index) => ({
+      icon: fitIcons[index] ?? 'checkroom',
+      ...item,
+    }))
+  }
+
+  return splitSentences(normalizeReportText(`${styleSection} ${tipSection}`))
+    .slice(0, 3)
+    .map((sentence, index) => ({
+      icon: fitIcons[index] ?? 'checkroom',
+      title: inferCardTitle(sentence, index),
+      copy: sentence,
+    }))
+}
+
+function extractListItems(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^[-*]\s+|^\d+[).]\s+/.test(line))
+    .map((line) => {
+      const cleanedLine = line.replace(/^[-*]\s+|^\d+[).]\s+/, '').replace(/\*\*/g, '').trim()
+      const [rawTitle, ...rest] = cleanedLine.split(/[:：-]/)
+      const title = rawTitle.trim()
+      const copy = rest.join(' ').trim() || cleanedLine
+
+      return {
+        title: title.length > 20 ? inferCardTitle(cleanedLine, 0) : title,
+        copy,
+      }
+    })
+}
+
+function splitSentences(text: string) {
+  return text
+    .split(/(?<=[.!?。]|다\.|요\.)\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 18)
+}
+
+function inferCardTitle(sentence: string, index: number) {
+  if (/자켓|블레이저|아우터/.test(sentence)) return '아우터 방향'
+  if (/슬랙스|팬츠|데님|하의/.test(sentence)) return '하의 실루엣'
+  if (/셔츠|니트|상의/.test(sentence)) return '상의 밸런스'
+  if (/컬러|톤|배색/.test(sentence)) return '컬러 조합'
+  if (/허리|비율/.test(sentence)) return '비율 보정'
+
+  return ['핏 전략', '실루엣 전략', '코디 전략'][index] ?? '스타일 전략'
+}
+
+function buildPicks(styleSection: string) {
+  const items = extractListItems(styleSection).slice(0, 2)
+
+  if (items.length) {
+    return items.map((item, index) => ({
+      title: item.title,
+      meta: item.copy.slice(0, 56),
+      image: reportPickImages[index]?.image ?? reportPickImages[0].image,
+    }))
+  }
+
+  return splitSentences(normalizeReportText(styleSection))
+    .slice(0, 2)
+    .map((sentence, index) => ({
+      title: inferCardTitle(sentence, index),
+      meta: sentence.slice(0, 56),
+      image: reportPickImages[index]?.image ?? reportPickImages[0].image,
+    }))
+}
+
+function buildPalette(colorSection: string) {
+  const matchedColors = colorTokens.filter((token) =>
+    token.keywords.some((keyword) => colorSection.toLowerCase().includes(keyword.toLowerCase())),
+  )
+
+  return (matchedColors.length ? matchedColors : colorTokens.slice(0, 5))
+    .slice(0, 5)
+    .map(({ name, color }) => ({ name, color }))
 }
 
 function readFileAsDataUrl(file: File) {
